@@ -17,6 +17,7 @@ function parseIntOrDefault(value, defaultValue) {
 
 const config = {
   // Server configuration
+  version: 'V0.0.5',
   port: parseIntOrDefault(process.env.PORT, 3000),
   timezone: process.env.TZ || 'Asia/Shanghai',
 
@@ -25,6 +26,7 @@ const config = {
     baseURL: process.env.LLM_BASE_URL || 'http://llm.ai-infra.svc.cluster.local',
     chatEndpoint: '/v1/chat/completions',
     modelsEndpoint: '/v1/models',
+    embeddingsEndpoint: '/v1/embeddings',
     requestTimeoutMs: parseIntOrDefault(process.env.LLM_REQUEST_TIMEOUT_MS, 8000),
   },
 
@@ -41,6 +43,7 @@ const config = {
 // It's often useful to have fully constructed URLs in the config
 config.llm.chatUrl = `${config.llm.baseURL}${config.llm.chatEndpoint}`;
 config.llm.modelsUrl = `${config.llm.baseURL}${config.llm.modelsEndpoint}`;
+config.llm.embeddingsUrl = `${config.llm.baseURL}${config.llm.embeddingsEndpoint}`;
 
 
 // --- Validation ---

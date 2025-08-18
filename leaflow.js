@@ -62,7 +62,7 @@ app.use(morgan('combined'));
 
 // --- Routes ---
 app.get('/', (req, res) => {
-  res.type('text/plain').send('LEAFLOW API RUNNING V0.0.3');
+  res.type('text/plain').send(`LEAFLOW API ${config.version}`);
 });
 
 // Health check endpoint
@@ -115,7 +115,29 @@ app.post('/v1/chat/completions', async (req, res) => {
   }
 });
 
+app.post('/v1/embeddings', async (req, res) => {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+  const payload = req.body;
+
+  try {
+    const axRes = await axios.post(config.llm.embeddingsUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.auth.innerToken}`
+      },
+      timeout: config.llm.requestTimeoutMs,
+      responseType: 'json'
+    });
+
+    res.status(axRes.status).json(axRes.data);
+  } catch (err) {
+    return handleUpstreamError(err, res, '/v1/embeddings');
+  }
+});
+
 // --- Startup ---
 app.listen(config.port, () => {
   console.log(`[Server] Running on port ${config.port}`);
+  console.log(`[Server] Version: ${config.version}`);
 });
