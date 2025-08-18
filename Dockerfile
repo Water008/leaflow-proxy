@@ -10,6 +10,7 @@ RUN npm ci --omit=dev
 
 # ---- 复制源码 ----
 COPY leaflow.js ./
+COPY config.js ./
 
 # ---- 暴露端口 ----
 EXPOSE 3000
