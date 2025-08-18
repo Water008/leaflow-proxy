@@ -35,9 +35,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}   # v1.2.3
-            type=semver,pattern={{major}}.{{minor}}  # 1.2
-            type=semver,pattern={{major}}              # 1
+            type=semver,pattern=v{{version}}   # v1.2.3
 
       - name: Build and push
         uses: docker/build-push-action@v5
