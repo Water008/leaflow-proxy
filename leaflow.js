@@ -61,7 +61,6 @@ app.post('/v1/chat/completions', async (req, res) => {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${INNER_TOKEN}`
       },
-      timeout: 55000,
       responseType: useStream ? 'stream' : 'json'
     });
 
