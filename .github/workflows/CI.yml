@@ -3,20 +3,17 @@ name: Build & Push Docker Image
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
+    tags: [ 'v*' ]          # 只在你打 tag 时触发
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}   # 形如  ghcr.io/用户名/leaflow-proxy
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write   # 推送镜像需要写权限
+      packages: write
 
     steps:
       - name: Checkout
@@ -32,11 +29,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}   # v1.2.3
+            type=semver,pattern={{major}}.{{minor}}  # 1.2
+            type=semver,pattern={{major}}              # 1
 
       - name: Build and push
         uses: docker/build-push-action@v5
