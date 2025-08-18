@@ -22,7 +22,6 @@ const LEAFLOW_MODELS = 'http://llm.ai-infra.svc.cluster.local/v1/models';
 app.set('trust proxy', 1);
 app.use(cors());                   // 允许所有来源跨域；生产请按需配置
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'templates')));
 
 /* ---------- 工具 ---------- */
 function checkAuth(req) {
@@ -32,7 +31,7 @@ function checkAuth(req) {
 
 /* ---------- 路由 ---------- */
 app.get('/', (req, res) => {
-  res.type('text/plain').send('LEAFLOW API RUNNING');
+  res.type('text/plain').send('LEAFLOW API RUNNING V0.0.1');
 });
 
 app.get('/v1/models', async (req, res) => {
