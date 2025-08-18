@@ -3,7 +3,23 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const morgan = require('morgan');
+const multer = require('multer');
 const config = require('./config');
+
+// Configure multer for file uploads
+const upload = multer({ 
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept image files only
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('只允许上传图片文件'));
+    }
+  }
+});
 
 const app = express();
 
@@ -23,7 +39,7 @@ function checkAuth(req) {
 
 /**
  * Processes messages in the payload to handle image content.
- * Supports both base64 encoded images and image URLs.
+ * Supports base64 encoded images and image URLs.
  * @param {Object} payload - The request payload.
  * @returns {Object} The processed payload with image content properly formatted.
  */
@@ -58,6 +74,109 @@ function processImageContent(payload) {
         }
         
         // If it's an image part, process it
+        if (part.type === 'image_url') {
+          // Handle image URL object
+          if (typeof part.image_url === 'string') {
+            return {
+              type: 'image_url',
+              image_url: {
+                url: part.image_url
+              }
+            };
+          }
+          
+          // Handle object with url property
+          if (typeof part.image_url === 'object' && part.image_url.url) {
+            return {
+              type: 'image_url',
+              image_url: {
+                url: part.image_url.url,
+                detail: part.image_url.detail || 'auto'
+              }
+            };
+          }
+        }
+        
+        // Return part unchanged if it doesn't match expected formats
+        return part;
+      });
+      
+      return {
+        ...message,
+        content: processedContent
+      };
+    }
+    
+    // Return message unchanged if content is neither string nor array
+    return message;
+  });
+  
+  return processedPayload;
+}
+
+/**
+ * Processes messages in the payload to handle uploaded image files.
+ * Converts uploaded files to base64 data URLs.
+ * @param {Object} payload - The request payload.
+ * @param {Array} files - The uploaded files from multer.
+ * @returns {Object} The processed payload with image content properly formatted.
+ */
+function processImageContentWithFiles(payload, files) {
+  // Create a deep copy of the payload to avoid modifying the original
+  const processedPayload = JSON.parse(JSON.stringify(payload));
+  
+  // Check if messages exist in the payload
+  if (!processedPayload.messages || !Array.isArray(processedPayload.messages)) {
+    return processedPayload;
+  }
+  
+  // Create a map of uploaded files by fieldname
+  const fileMap = {};
+  if (files && Array.isArray(files)) {
+    files.forEach(file => {
+      // Convert file buffer to base64 data URL
+      const base64Data = file.buffer.toString('base64');
+      const dataUrl = `data:${file.mimetype};base64,${base64Data}`;
+      fileMap[file.fieldname] = dataUrl;
+    });
+  }
+  
+  // Process each message
+  processedPayload.messages = processedPayload.messages.map(message => {
+    // Skip if message doesn't have content
+    if (!message.content) {
+      return message;
+    }
+    
+    // Handle string content (no images)
+    if (typeof message.content === 'string') {
+      return message;
+    }
+    
+    // Handle array content (may contain images)
+    if (Array.isArray(message.content)) {
+      // Process each content part
+      const processedContent = message.content.map(part => {
+        // If it's a text part, leave it as is
+        if (part.type === 'text') {
+          return part;
+        }
+        
+        // If it's an image part with a file reference, replace with base64 data URL
+        if (part.type === 'image_file' && part.file_key) {
+          const dataUrl = fileMap[part.file_key];
+          if (dataUrl) {
+            return {
+              type: 'image_url',
+              image_url: {
+                url: dataUrl,
+                detail: part.detail || 'auto'
+              }
+            };
+          }
+        }
+        
+        // If it's already an image_url part, process it
         if (part.type === 'image_url') {
           // Handle image URL object
           if (typeof part.image_url === 'string') {
@@ -161,11 +280,53 @@ app.get('/v1/models', async (req, res) => {
   }
 });
 
+// Handle regular JSON requests
 app.post('/v1/chat/completions', async (req, res) => {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
 
   // Process payload to handle image content
   const payload = processImageContent(req.body);
+  const useStream = !!payload.stream;
+
+  try {
+    const axRes = await axios.post(config.llm.chatUrl, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.auth.innerToken}`
+      },
+      timeout: config.llm.requestTimeoutMs,
+      responseType: useStream ? 'stream' : 'json'
+    });
+
+    if (useStream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      // Add header to prevent buffering by reverse proxies if necessary
+      // res.setHeader('X-Accel-Buffering', 'no');
+      axRes.data.pipe(res);
+    } else {
+      res.status(axRes.status).json(axRes.data);
+    }
+  } catch (err) {
+    return handleUpstreamError(err, res, '/v1/chat/completions');
+  }
+});
+
+// Handle multipart/form-data requests with file uploads
+app.post('/v1/chat/completions', upload.array('images', 10), async (req, res) => {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
+
+  let payload;
+  try {
+    // Parse the JSON payload from the 'data' field
+    payload = JSON.parse(req.body.data);
+  } catch (err) {
+    return res.status(400).json({ error: 'Invalid JSON in data field' });
+  }
+
+  // Process payload to handle image content
+  payload = processImageContentWithFiles(payload, req.files);
   const useStream = !!payload.stream;
 
   try {
