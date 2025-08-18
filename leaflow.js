@@ -3,10 +3,7 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const morgan = require('morgan');
-const multer = require('multer');
 const config = require('./config');
-
-const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 
@@ -87,56 +84,16 @@ app.get('/v1/models', async (req, res) => {
   }
 });
 
-app.post('/v1/chat/completions', upload.single('image'), async (req, res) => {
+app.post('/v1/chat/completions', async (req, res) => {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
 
-  let payload = req.body;
+  const payload = req.body;
   const useStream = !!payload.stream;
-
-  // If an image file is uploaded, process it
-  if (req.file) {
-    const base64Image = req.file.buffer.toString('base64');
-    const mimeType = req.file.mimetype;
-
-    // Assuming the message structure is an array of messages,
-    // and the last message is the one to which the image should be added.
-    // This logic might need to be more sophisticated based on actual client requests.
-    if (payload.messages && Array.isArray(payload.messages) && payload.messages.length > 0) {
-      const lastMessage = payload.messages[payload.messages.length - 1];
-
-      // Ensure the content is an array to add image_url part
-      if (typeof lastMessage.content === 'string') {
-        lastMessage.content = [{ type: 'text', text: lastMessage.content }];
-      } else if (!Array.isArray(lastMessage.content)) {
-        lastMessage.content = []; // Initialize if not string or array
-      }
-
-      lastMessage.content.push({
-        type: 'image_url',
-        image_url: {
-          url: `data:${mimeType};base64,${base64Image}`,
-          detail: 'high' // Or 'low', 'auto' based on requirements
-        }
-      });
-    } else {
-      // If no existing messages or unexpected structure, create a new message with the image
-      payload.messages = [{
-        role: 'user',
-        content: [{
-          type: 'image_url',
-          image_url: {
-            url: `data:${mimeType};base64,${base64Image}`,
-            detail: 'high'
-          }
-        }]
-      }];
-    }
-  }
 
   try {
     const axRes = await axios.post(config.llm.chatUrl, payload, {
       headers: {
-        'Content-Type': 'application/json', // Always send as JSON to upstream
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${config.auth.innerToken}`
       },
       timeout: config.llm.requestTimeoutMs,
@@ -147,6 +104,8 @@ app.post('/v1/chat/completions', upload.single('image'), async (req, res) => {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
+      // Add header to prevent buffering by reverse proxies if necessary
+      // res.setHeader('X-Accel-Buffering', 'no');
       axRes.data.pipe(res);
     } else {
       res.status(axRes.status).json(axRes.data);

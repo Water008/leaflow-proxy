@@ -17,7 +17,7 @@ function parseIntOrDefault(value, defaultValue) {
 
 const config = {
   // Server configuration
-  version: 'V0.0.6',
+  version: 'V0.0.5',
   port: parseIntOrDefault(process.env.PORT, 3000),
   timezone: process.env.TZ || 'Asia/Shanghai',
 
