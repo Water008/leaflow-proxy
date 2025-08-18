@@ -22,6 +22,83 @@ function checkAuth(req) {
 }
 
 /**
+ * Processes messages in the payload to handle image content.
+ * Supports both base64 encoded images and image URLs.
+ * @param {Object} payload - The request payload.
+ * @returns {Object} The processed payload with image content properly formatted.
+ */
+function processImageContent(payload) {
+  // Create a deep copy of the payload to avoid modifying the original
+  const processedPayload = JSON.parse(JSON.stringify(payload));
+  
+  // Check if messages exist in the payload
+  if (!processedPayload.messages || !Array.isArray(processedPayload.messages)) {
+    return processedPayload;
+  }
+  
+  // Process each message
+  processedPayload.messages = processedPayload.messages.map(message => {
+    // Skip if message doesn't have content
+    if (!message.content) {
+      return message;
+    }
+    
+    // Handle string content (no images)
+    if (typeof message.content === 'string') {
+      return message;
+    }
+    
+    // Handle array content (may contain images)
+    if (Array.isArray(message.content)) {
+      // Process each content part
+      const processedContent = message.content.map(part => {
+        // If it's a text part, leave it as is
+        if (part.type === 'text') {
+          return part;
+        }
+        
+        // If it's an image part, process it
+        if (part.type === 'image_url') {
+          // Handle image URL object
+          if (typeof part.image_url === 'string') {
+            return {
+              type: 'image_url',
+              image_url: {
+                url: part.image_url
+              }
+            };
+          }
+          
+          // Handle object with url property
+          if (typeof part.image_url === 'object' && part.image_url.url) {
+            return {
+              type: 'image_url',
+              image_url: {
+                url: part.image_url.url,
+                detail: part.image_url.detail || 'auto'
+              }
+            };
+          }
+        }
+        
+        // Return part unchanged if it doesn't match expected formats
+        return part;
+      });
+      
+      return {
+        ...message,
+        content: processedContent
+      };
+    }
+    
+    // Return message unchanged if content is neither string nor array
+    return message;
+  });
+  
+  return processedPayload;
+}
+
+/**
  * Handles errors from axios requests to the internal LLM service.
  * Logs the full error server-side and sends a sanitized response to the client.
  * @param {Error} err - The error object from axios.
@@ -87,7 +164,8 @@ app.get('/v1/models', async (req, res) => {
 app.post('/v1/chat/completions', async (req, res) => {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' });
 
-  const payload = req.body;
+  // Process payload to handle image content
+  const payload = processImageContent(req.body);
   const useStream = !!payload.stream;
 
   try {
