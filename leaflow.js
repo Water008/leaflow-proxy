@@ -53,7 +53,9 @@ function checkAuth(req) {
 function validateImageUrl(url) {
   try {
     new URL(url);
-    return url.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null;
+    // Accept both regular image URLs and base64 data URLs
+    return url.match(/\.(jpg|jpeg|png|gif|webp)$/i) !== null || 
+           url.startsWith('data:image/') && url.includes('base64');
   } catch {
     return false;
   }
