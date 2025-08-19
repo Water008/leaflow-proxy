@@ -17,7 +17,7 @@ function parseIntOrDefault(value, defaultValue) {
 
 const config = {
   // Server configuration
-  version: 'V0.0.5',
+  version: 'V0.0.9',
   port: parseIntOrDefault(process.env.PORT, 3000),
   timezone: process.env.TZ || 'Asia/Shanghai',
 
@@ -27,7 +27,7 @@ const config = {
     chatEndpoint: '/v1/chat/completions',
     modelsEndpoint: '/v1/models',
     embeddingsEndpoint: '/v1/embeddings',
-    requestTimeoutMs: parseIntOrDefault(process.env.LLM_REQUEST_TIMEOUT_MS, 8000),
+    requestTimeoutMs: parseIntOrDefault(process.env.LLM_REQUEST_TIMEOUT_MS, 15000),
   },
 
   // Authorization tokens
@@ -36,6 +36,13 @@ const config = {
     innerToken: process.env.INNER_TOKEN || '',
     // Optional key to protect this proxy service
     authorizationKey: process.env.AUTHORIZATION_KEY,
+  },
+
+  // Image upload configuration
+  image: {
+    maxFileSize: parseIntOrDefault(process.env.IMAGE_MAX_SIZE_MB, 10) * 1024 * 1024, // Default 10MB
+    maxImages: parseIntOrDefault(process.env.IMAGE_MAX_COUNT, 10), // Default 10 images
+    allowedTypes: process.env.IMAGE_ALLOWED_TYPES?.split(',') || ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
   },
 };
 
